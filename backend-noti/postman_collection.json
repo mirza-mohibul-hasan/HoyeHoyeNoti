@@ -1,0 +1,199 @@
+{
+	"info": {
+		"name": "HoyeHoyeNoti - Auth API",
+		"description": "Role-based user/auth API for backend-noti (student / teaching_assistant / teacher).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+		{ "key": "student_token", "value": "", "type": "string" },
+		{ "key": "teacher_token", "value": "", "type": "string" },
+		{ "key": "student_email", "value": "alice@example.com", "type": "string" },
+		{ "key": "student_password", "value": "pass1234", "type": "string" },
+		{ "key": "teacher_email", "value": "", "type": "string" },
+		{ "key": "teacher_password", "value": "", "type": "string" }
+	],
+	"item": [
+		{
+			"name": "Health",
+			"request": {
+				"method": "GET",
+				"url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+			}
+		},
+		{
+			"name": "Register (public, always student)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+							"pm.test('role is forced to student', function () {",
+							"    const body = pm.response.json();",
+							"    pm.expect(body.role).to.eql('student');",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [{ "key": "Content-Type", "value": "application/json" }],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Alice\",\n    \"email\": \"{{student_email}}\",\n    \"password\": \"{{student_password}}\",\n    \"role\": \"teacher\"\n}"
+				},
+				"url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] },
+				"description": "The 'role' field above is intentionally smuggled in to demonstrate it is ignored server-side — the created user is always a student."
+			}
+		},
+		{
+			"name": "Login (student)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('student_token', body.access_token);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{ "key": "username", "value": "{{student_email}}" },
+						{ "key": "password", "value": "{{student_password}}" }
+					]
+				},
+				"url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+			}
+		},
+		{
+			"name": "Me (current user)",
+			"request": {
+				"method": "GET",
+				"header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+				"url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+			}
+		},
+		{
+			"name": "Me - unauthorized (bad token)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [{ "key": "Authorization", "value": "Bearer garbage.token.here" }],
+				"url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+			}
+		},
+		{
+			"name": "Login (teacher)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('teacher_token', body.access_token);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{ "key": "username", "value": "{{teacher_email}}" },
+						{ "key": "password", "value": "{{teacher_password}}" }
+					]
+				},
+				"url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] },
+				"description": "There is no public endpoint to create the first teacher. Register a normal user, manually flip their role to \"teacher\" in MongoDB, then log in here to populate {{teacher_token}}."
+			}
+		},
+		{
+			"name": "Create User - as teacher (TA or student)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{teacher_token}}" }],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Bob TA\",\n    \"email\": \"bob@example.com\",\n    \"password\": \"pass1234\",\n    \"role\": \"teaching_assistant\"\n}"
+				},
+				"url": { "raw": "{{base_url}}/api/auth/create-user", "host": ["{{base_url}}"], "path": ["api", "auth", "create-user"] }
+			}
+		},
+		{
+			"name": "Create User - as student (expect 403)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{student_token}}" }],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Bob TA\",\n    \"email\": \"bob2@example.com\",\n    \"password\": \"pass1234\",\n    \"role\": \"teaching_assistant\"\n}"
+				},
+				"url": { "raw": "{{base_url}}/api/auth/create-user", "host": ["{{base_url}}"], "path": ["api", "auth", "create-user"] }
+			}
+		},
+		{
+			"name": "Create User - teacher tries to create teacher (expect 400)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{teacher_token}}" }],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Carl\",\n    \"email\": \"carl@example.com\",\n    \"password\": \"pass1234\",\n    \"role\": \"teacher\"\n}"
+				},
+				"url": { "raw": "{{base_url}}/api/auth/create-user", "host": ["{{base_url}}"], "path": ["api", "auth", "create-user"] }
+			}
+		}
+	]
+}
